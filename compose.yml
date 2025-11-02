@@ -1,6 +1,6 @@
 services:
   vein:
-    image: mbround18/vein-docker:latest
+    image: mbround18/vein-docker:main
     user: "1000:1000"
     stop_grace_period: 120s
     build:
