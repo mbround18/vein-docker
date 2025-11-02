@@ -57,9 +57,9 @@ ENV HOME=/home/steam \
 
 # Add entrypoint and scripts
 COPY --chown=steam:steam ./scripts/entrypoint.sh /entrypoint.sh
-COPY --chown=steam:steam ./scripts/update_ini.py /usr/local/bin/update_ini.py
+COPY --chown=steam:steam ./scripts/configure_server.py /usr/local/bin/configure_server.py
 RUN chmod +x /entrypoint.sh \
-    && chmod +x /usr/local/bin/update_ini.py \
+    && chmod +x /usr/local/bin/configure_server.py \
     && mkdir -p $HOME/.steam \
     && mkdir -p $INSTALL_DIR \
     && ln -s $HOME/.local/share/Steam/steamcmd/linux32 $HOME/.steam/sdk32 \

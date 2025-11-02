@@ -74,6 +74,9 @@ Advanced (optional):
 - ADMIN_STEAM_IDS — comma/newline list of Steam64 IDs
 - SUPERADMIN_STEAM_IDS — comma/newline list of Steam64 IDs
 - STEAM_GSLT — Game Server Login Token to claim ownership
+- AUTOSAVE_ENABLED — 1 (enabled) or 0 (disabled), default 1
+- AUTOSAVE_INTERVAL — seconds between autosaves, default 60
+- AUTOSAVE_MAX_QUANTITY — maximum number of autosave files to keep, default 10
 - INI_ENABLE — true/false to write settings into Game.ini (default true)
 - INI_EXTRA_OVERRIDES — extra lines like `Game.ini:/script/vein.veingamesession:BindAddr=0.0.0.0`
 - EXTRA_ARGS — extra flags passed to `VeinServer.sh`

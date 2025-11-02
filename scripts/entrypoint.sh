@@ -32,8 +32,11 @@ ADMIN_STEAM_IDS="${ADMIN_STEAM_IDS:-}"
 SUPERADMIN_STEAM_IDS="${SUPERADMIN_STEAM_IDS:-}"
 SAVE_ON_SHUTDOWN="${SAVE_ON_SHUTDOWN:-true}"
 SAVE_WAIT_SECONDS="${SAVE_WAIT_SECONDS:-5}"
+AUTOSAVE_ENABLED="${AUTOSAVE_ENABLED:-1}"
+AUTOSAVE_INTERVAL="${AUTOSAVE_INTERVAL:-60}"
+AUTOSAVE_MAX_QUANTITY="${AUTOSAVE_MAX_QUANTITY:-10}"
 
-# Helper: update INI values using crudini
+# Helper: set INI key-value (used only for INI_EXTRA_OVERRIDES now)
 set_ini_kv() {
   local file="$1"; shift
   local section="$1"; shift
@@ -41,48 +44,8 @@ set_ini_kv() {
   local value="$1"; shift || true
   mkdir -p "$(dirname "$file")"
   touch "$file"
-  # Strip surrounding brackets from section if present
   local sec_clean="${section#[}"; sec_clean="${sec_clean%]}"
   crudini --set "$file" "$sec_clean" "$key" "$value"
-}
-
-# Helper: ensure section exists
-ensure_section() {
-  local file="$1" section="$2"
-  crudini --set "$file" "${section#[}" "__ensure" "__ensure" 2>/dev/null || true
-  crudini --del "$file" "${section#[}" "__ensure" 2>/dev/null || true
-}
-
-# Helper: delete all key lines inside a section
-del_key_in_section() {
-  local file="$1" section="$2" key="$3"
-  local esc_section esc_key
-  esc_section=$(printf '%s' "$section" | sed 's/[\/[][\.^$*+?{}|()]/\\&/g')
-  esc_key=$(printf '%s' "$key" | sed 's/[\/[][\.^$*+?{}|()]/\\&/g')
-  sed -i -E "/^\\[$esc_section\\]/,/^\\[/{/^[[:space:]]*${esc_key}=.*/d}" "$file" 2>/dev/null || true
-}
-
-# Helper: delete both plain and +Key variants inside a section
-del_key_variants_in_section() {
-  local file="$1" section="$2" key="$3"
-  local esc_section esc_key
-  esc_section=$(printf '%s' "$section" | sed 's/[\/[][\.^$*+?{}|()]/\\&/g')
-  esc_key=$(printf '%s' "$key" | sed 's/[\/[][\.^$*+?{}|()]/\\&/g')
-  sed -i -E "/^\\[$esc_section\\]/,/^\\[/{/^[[:space:]]*[+]?${esc_key}=.*/d}" "$file" 2>/dev/null || true
-}
-
-# Helper: append multiple key=value lines directly after a section header
-append_list_after_section() {
-  local file="$1" section="$2" key="$3"; shift 3
-  local esc
-  esc=$(printf '%s' "$section" | sed 's/[\/[][\.^$*+?{}|()]/\\&/g')
-  # Append in reverse order to keep final order as provided
-  local items=("$@")
-  local i
-  for (( i=${#items[@]}-1; i>=0; i-- )); do
-    [[ -n "${items[$i]}" ]] || continue
-    sed -i "/^\\[$esc\\]/a ${key}=${items[$i]}" "$file" 2>/dev/null || true
-  done
 }
 
 # Discover config directory candidates
@@ -178,78 +141,97 @@ if [[ "$should_install" == "true" ]]; then
   "${cmd[@]}"
 fi
 
+# Check if initial config generation is needed
+CONFIG_DIR="$(discover_config_dir "$INSTALL_DIR")"
+GAME_INI="$CONFIG_DIR/Game.ini"
+GAME_USER_SETTINGS_INI="$CONFIG_DIR/GameUserSettings.ini"
+
+if [[ ! -f "$GAME_INI" || ! -f "$GAME_USER_SETTINGS_INI" ]]; then
+  echo "⚙️ Config files not found - triggering first run for config generation..."
+  echo "📂 Looking for configs in: $CONFIG_DIR"
+  
+  # Preserve existing save games by moving them to staging
+  SAVE_GAMES_DIR="$INSTALL_DIR/Vein/Saved/SaveGames"
+  STAGING_DIR="$INSTALL_DIR/.save_staging"
+  
+  if [[ -d "$SAVE_GAMES_DIR" ]] && [[ -n "$(ls -A "$SAVE_GAMES_DIR" 2>/dev/null || true)" ]]; then
+    echo "💾 Backing up existing save games to staging..."
+    mkdir -p "$STAGING_DIR"
+    cp -r "$SAVE_GAMES_DIR"/* "$STAGING_DIR/" 2>/dev/null || true
+  fi
+  
+  # Find the server executable to run
+  FIRST_RUN_CMD=""
+  if [[ -f "$INSTALL_DIR/VeinServer.sh" ]]; then
+    chmod +x "$INSTALL_DIR/VeinServer.sh" || true
+    FIRST_RUN_CMD="cd \"$INSTALL_DIR\" && timeout 30s ./VeinServer.sh -log || true"
+  fi
+  
+  if [[ -n "$FIRST_RUN_CMD" ]]; then
+    echo "🚀 Starting server for config generation (max 30 seconds)..."
+    bash -c "$FIRST_RUN_CMD" &
+    FIRST_RUN_PID=$!
+    
+    # Wait for config files to be created or timeout
+    for ((i=0; i<30; i++)); do
+      if [[ -f "$GAME_INI" && -f "$GAME_USER_SETTINGS_INI" ]]; then
+        echo "✅ Config files generated!"
+        break
+      fi
+      sleep 1
+    done
+    
+    # Kill the first-run server
+    echo "🛑 Stopping config generation server..."
+    kill -INT "$FIRST_RUN_PID" 2>/dev/null || true
+    sleep 2
+    kill -KILL "$FIRST_RUN_PID" 2>/dev/null || true
+    
+    # Clean up any leftover processes
+    pkill -f "VeinServer" 2>/dev/null || true
+    
+    # Delete the generated save games and restore the backed-up ones
+    if [[ -d "$STAGING_DIR" ]] && [[ -n "$(ls -A "$STAGING_DIR" 2>/dev/null || true)" ]]; then
+      echo "♻️ Restoring backed-up save games..."
+      rm -rf "$SAVE_GAMES_DIR"/* 2>/dev/null || true
+      cp -r "$STAGING_DIR"/* "$SAVE_GAMES_DIR/" 2>/dev/null || true
+      rm -rf "$STAGING_DIR" 2>/dev/null || true
+    else
+      echo "🗑️ Removing initial save games for regeneration with correct settings..."
+      rm -rf "$SAVE_GAMES_DIR"/* 2>/dev/null || true
+    fi
+    
+    echo "✨ First run complete - proceeding with configuration..."
+  else
+    echo "⚠️ Could not find server executable for first run"
+  fi
+fi
+
 # Apply INI settings if enabled
 if [[ "$INI_ENABLE" == "true" ]]; then
-  CONFIG_DIR="$(discover_config_dir "$INSTALL_DIR")"
-  GAME_INI="$CONFIG_DIR/Game.ini"
-  # Desired sections per request
-  ENGINE_SESSION_SECTION="/Script/Engine.GameSession"
-  VEIN_SESSION_SECTION="/Script/Vein.VeinGameSession"
-
-  echo "📝 Applying INI overrides in: $GAME_INI"
-
-  # Ensure sections exist
-  ensure_section "$GAME_INI" "$ENGINE_SESSION_SECTION"
-  ensure_section "$GAME_INI" "$VEIN_SESSION_SECTION"
-
-  # Clean up legacy lowercase sections if present to avoid duplicate/conflicting keys
-  crudini --del "$GAME_INI" "/script/engine.gamesession" 2>/dev/null || true
-  crudini --del "$GAME_INI" "/script/vein.veingamesession" 2>/dev/null || true
-
-  # Engine.GameSession
-  if [[ -n "${MAX_PLAYERS:-}" ]]; then
-    set_ini_kv "$GAME_INI" "$ENGINE_SESSION_SECTION" "MaxPlayers" "$MAX_PLAYERS"
-  fi
-
-  # Vein.VeinGameSession
-  # bPublic True/False
-  if [[ -n "${SERVER_PUBLIC:-}" ]]; then
-    case "${SERVER_PUBLIC,,}" in
-      true|1|yes|on) set_ini_kv "$GAME_INI" "$VEIN_SESSION_SECTION" "bPublic" "True" ;;
-      *) set_ini_kv "$GAME_INI" "$VEIN_SESSION_SECTION" "bPublic" "False" ;;
-    esac
-  fi
-  if [[ -n "${SERVER_NAME:-}" ]]; then
-    set_ini_kv "$GAME_INI" "$VEIN_SESSION_SECTION" "ServerName" "$SERVER_NAME"
-  fi
-  set_ini_kv "$GAME_INI" "$VEIN_SESSION_SECTION" "BindAddr" "$BIND_ADDR"
-  if [[ -n "${HEARTBEAT_INTERVAL:-}" ]]; then
-    set_ini_kv "$GAME_INI" "$VEIN_SESSION_SECTION" "HeartbeatInterval" "$HEARTBEAT_INTERVAL"
-  fi
-  if [[ -n "${SERVER_PASSWORD:-}" ]]; then
-    set_ini_kv "$GAME_INI" "$VEIN_SESSION_SECTION" "Password" "$SERVER_PASSWORD"
-  fi
-
-  # Admin/SuperAdmin Steam IDs (comma or newline separated)
-  # Parse both lists separately - no merging
-  id_arr=()
-  sid_arr=()
-  if [[ -n "$ADMIN_STEAM_IDS" ]]; then
-    ids=$(printf "%s" "$ADMIN_STEAM_IDS" | tr ',\n' '  ')
-    read -r -a id_arr <<< "$ids"
-  fi
-  if [[ -n "$SUPERADMIN_STEAM_IDS" ]]; then
-    sids=$(printf "%s" "$SUPERADMIN_STEAM_IDS" | tr ',\n' '  ')
-    read -r -a sid_arr <<< "$sids"
-  fi
+  echo "📝 Applying INI configuration..."
   
-  # Write Admin IDs only if ADMIN_STEAM_IDS is set
-  if (( ${#id_arr[@]} > 0 )); then
-    uv run --no-project /usr/local/bin/update_ini.py "$GAME_INI" "$VEIN_SESSION_SECTION" admin "${id_arr[@]}"
-  fi
+  # Build arguments for configure_server.py
+  CONFIG_ARGS=("$CONFIG_DIR")
   
-  # Write SuperAdmin IDs only if SUPERADMIN_STEAM_IDS is set
-  if (( ${#sid_arr[@]} > 0 )); then
-    uv run --no-project /usr/local/bin/update_ini.py "$GAME_INI" "$VEIN_SESSION_SECTION" superadmin "${sid_arr[@]}"
-  fi
-
-  # Normalize formatting: remove spaces around equals for all key/value lines
-  if command -v sed >/dev/null 2>&1; then
-    sed -i -E 's/^([[:space:]]*[^#;][^=]*?)\s*=\s*/\1=/' "$GAME_INI" || true
-  fi
-
+  [[ -n "${MAX_PLAYERS:-}" ]] && CONFIG_ARGS+=(--max-players "$MAX_PLAYERS")
+  [[ -n "${SERVER_PUBLIC:-}" ]] && CONFIG_ARGS+=(--server-public "$SERVER_PUBLIC")
+  [[ -n "${SERVER_NAME:-}" ]] && CONFIG_ARGS+=(--server-name "$SERVER_NAME")
+  [[ -n "${BIND_ADDR:-}" ]] && CONFIG_ARGS+=(--bind-addr "$BIND_ADDR")
+  [[ -n "${HEARTBEAT_INTERVAL:-}" ]] && CONFIG_ARGS+=(--heartbeat-interval "$HEARTBEAT_INTERVAL")
+  [[ -n "${SERVER_PASSWORD:-}" ]] && CONFIG_ARGS+=(--server-password "$SERVER_PASSWORD")
+  [[ -n "${ADMIN_STEAM_IDS:-}" ]] && CONFIG_ARGS+=(--admin-steam-ids "$ADMIN_STEAM_IDS")
+  [[ -n "${SUPERADMIN_STEAM_IDS:-}" ]] && CONFIG_ARGS+=(--superadmin-steam-ids "$SUPERADMIN_STEAM_IDS")
+  [[ -n "${AUTOSAVE_ENABLED:-}" ]] && CONFIG_ARGS+=(--autosave-enabled "$AUTOSAVE_ENABLED")
+  [[ -n "${AUTOSAVE_INTERVAL:-}" ]] && CONFIG_ARGS+=(--autosave-interval "$AUTOSAVE_INTERVAL")
+  [[ -n "${AUTOSAVE_MAX_QUANTITY:-}" ]] && CONFIG_ARGS+=(--autosave-max-quantity "$AUTOSAVE_MAX_QUANTITY")
+  
+  # Run the Python configuration script
+  uv run --no-project /usr/local/bin/configure_server.py "${CONFIG_ARGS[@]}"
+  
   # Optional arbitrary overrides: multiline format file:section:key=value
   if [[ -n "${INI_EXTRA_OVERRIDES:-}" ]]; then
+    echo "📝 Applying custom INI overrides..."
     while IFS= read -r line; do
       # Skip empty or commented lines
       [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
@@ -257,7 +239,6 @@ if [[ "$INI_ENABLE" == "true" ]]; then
       file="${line%%:*}"; part="${line#*:}"
       section="${part%%:*}"; part2="${part#*:}"
       key="${part2%%=*}"; value="${part2#*=}"
-    # (Optional) whitespace trimming removed to avoid shell pattern pitfalls
       # Resolve relative file to CONFIG_DIR
       if [[ "$file" != /* ]]; then
         file="$CONFIG_DIR/$file"
