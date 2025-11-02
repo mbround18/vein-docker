@@ -24,6 +24,9 @@ RUN apt-get update \
     && gosu nobody true \
     && dos2unix
 
+# Install uv for Python script execution
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
 # Remove any existing user or group with ID 1000 and create steam user
 RUN if getent passwd 1000 > /dev/null; then userdel $(getent passwd 1000 | cut -d: -f1); fi \
     && if getent group 1000 > /dev/null; then groupdel $(getent group 1000 | cut -d: -f1); fi \
@@ -52,9 +55,11 @@ ENV HOME=/home/steam \
     APP_ID=2131400 \
     INSTALL_DIR=/home/steam/vein
 
-# Add entrypoint
+# Add entrypoint and scripts
 COPY --chown=steam:steam ./scripts/entrypoint.sh /entrypoint.sh
+COPY --chown=steam:steam ./scripts/update_ini.py /usr/local/bin/update_ini.py
 RUN chmod +x /entrypoint.sh \
+    && chmod +x /usr/local/bin/update_ini.py \
     && mkdir -p $HOME/.steam \
     && mkdir -p $INSTALL_DIR \
     && ln -s $HOME/.local/share/Steam/steamcmd/linux32 $HOME/.steam/sdk32 \

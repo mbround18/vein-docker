@@ -56,16 +56,26 @@ ensure_section() {
 # Helper: delete all key lines inside a section
 del_key_in_section() {
   local file="$1" section="$2" key="$3"
-  local esc
-  esc=$(printf '%s' "$section" | sed 's/[][\.^$*+?{}|()]/\\&/g')
-  sed -i -E "/^\\[$esc\\]/,/^\\[/{/^[[:space:]]*${key}=.*/d}" "$file" 2>/dev/null || true
+  local esc_section esc_key
+  esc_section=$(printf '%s' "$section" | sed 's/[\/[][\.^$*+?{}|()]/\\&/g')
+  esc_key=$(printf '%s' "$key" | sed 's/[\/[][\.^$*+?{}|()]/\\&/g')
+  sed -i -E "/^\\[$esc_section\\]/,/^\\[/{/^[[:space:]]*${esc_key}=.*/d}" "$file" 2>/dev/null || true
+}
+
+# Helper: delete both plain and +Key variants inside a section
+del_key_variants_in_section() {
+  local file="$1" section="$2" key="$3"
+  local esc_section esc_key
+  esc_section=$(printf '%s' "$section" | sed 's/[\/[][\.^$*+?{}|()]/\\&/g')
+  esc_key=$(printf '%s' "$key" | sed 's/[\/[][\.^$*+?{}|()]/\\&/g')
+  sed -i -E "/^\\[$esc_section\\]/,/^\\[/{/^[[:space:]]*[+]?${esc_key}=.*/d}" "$file" 2>/dev/null || true
 }
 
 # Helper: append multiple key=value lines directly after a section header
 append_list_after_section() {
   local file="$1" section="$2" key="$3"; shift 3
   local esc
-  esc=$(printf '%s' "$section" | sed 's/[][\.^$*+?{}|()]/\\&/g')
+  esc=$(printf '%s' "$section" | sed 's/[\/[][\.^$*+?{}|()]/\\&/g')
   # Append in reverse order to keep final order as provided
   local items=("$@")
   local i
@@ -173,14 +183,18 @@ if [[ "$INI_ENABLE" == "true" ]]; then
   CONFIG_DIR="$(discover_config_dir "$INSTALL_DIR")"
   GAME_INI="$CONFIG_DIR/Game.ini"
   # Desired sections per request
-  ENGINE_SESSION_SECTION="/script/engine.gamesession"
-  VEIN_SESSION_SECTION="/script/vein.veingamesession"
+  ENGINE_SESSION_SECTION="/Script/Engine.GameSession"
+  VEIN_SESSION_SECTION="/Script/Vein.VeinGameSession"
 
   echo "📝 Applying INI overrides in: $GAME_INI"
 
   # Ensure sections exist
   ensure_section "$GAME_INI" "$ENGINE_SESSION_SECTION"
   ensure_section "$GAME_INI" "$VEIN_SESSION_SECTION"
+
+  # Clean up legacy lowercase sections if present to avoid duplicate/conflicting keys
+  crudini --del "$GAME_INI" "/script/engine.gamesession" 2>/dev/null || true
+  crudini --del "$GAME_INI" "/script/vein.veingamesession" 2>/dev/null || true
 
   # Engine.GameSession
   if [[ -n "${MAX_PLAYERS:-}" ]]; then
@@ -207,18 +221,26 @@ if [[ "$INI_ENABLE" == "true" ]]; then
   fi
 
   # Admin/SuperAdmin Steam IDs (comma or newline separated)
+  # Parse both lists separately - no merging
+  id_arr=()
+  sid_arr=()
   if [[ -n "$ADMIN_STEAM_IDS" ]]; then
-    # Normalize separators to spaces
     ids=$(printf "%s" "$ADMIN_STEAM_IDS" | tr ',\n' '  ')
     read -r -a id_arr <<< "$ids"
-    del_key_in_section "$GAME_INI" "$VEIN_SESSION_SECTION" "AdminSteamIDs"
-    append_list_after_section "$GAME_INI" "$VEIN_SESSION_SECTION" "AdminSteamIDs" "${id_arr[@]}"
   fi
   if [[ -n "$SUPERADMIN_STEAM_IDS" ]]; then
     sids=$(printf "%s" "$SUPERADMIN_STEAM_IDS" | tr ',\n' '  ')
     read -r -a sid_arr <<< "$sids"
-    del_key_in_section "$GAME_INI" "$VEIN_SESSION_SECTION" "SuperAdminSteamIDs"
-    append_list_after_section "$GAME_INI" "$VEIN_SESSION_SECTION" "SuperAdminSteamIDs" "${sid_arr[@]}"
+  fi
+  
+  # Write Admin IDs only if ADMIN_STEAM_IDS is set
+  if (( ${#id_arr[@]} > 0 )); then
+    uv run --no-project /usr/local/bin/update_ini.py "$GAME_INI" "$VEIN_SESSION_SECTION" admin "${id_arr[@]}"
+  fi
+  
+  # Write SuperAdmin IDs only if SUPERADMIN_STEAM_IDS is set
+  if (( ${#sid_arr[@]} > 0 )); then
+    uv run --no-project /usr/local/bin/update_ini.py "$GAME_INI" "$VEIN_SESSION_SECTION" superadmin "${sid_arr[@]}"
   fi
 
   # Normalize formatting: remove spaces around equals for all key/value lines
@@ -299,17 +321,17 @@ graceful_shutdown() {
 
     # Attempt to send to main PID
     if kill -0 "$SERVER_PID" 2>/dev/null; then
-      send_cmd_to_pid "$SERVER_PID" "Exit" || true
+      send_cmd_to_pid "$SERVER_PID" "vein.Saves.Async" || true
     fi
     # Attempt to send to any matching process as well
     for pat in "${patterns[@]}"; do
       pids=$(pgrep -f "$pat" 2>/dev/null || true)
       if [[ -n "${pids:-}" ]]; then
-        for p in $pids; do send_cmd_to_pid "$p" "quit" || true; done
+        for p in $pids; do send_cmd_to_pid "$p" "vein.Saves.Async" || true; done
       fi
     done
-    echo "⏳ Waiting ${SAVE_WAIT_SECONDS}s for save to complete..."
-    sleep "$SAVE_WAIT_SECONDS" || true
+    echo "⏳ Waiting 10s for save to complete..."
+    sleep 10 || true
   fi
 
   # Send SIGINT to main PID first
