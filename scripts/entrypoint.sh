@@ -115,6 +115,13 @@ rm -rf /home/steam/.cache || true
 echo "🔧 Running SteamCMD to ensure dependencies are up to date..."
 steamcmd +quit
 
+# Setup Steam SDK symlinks (needed for game servers)
+mkdir -p "$HOME/.steam"
+ln -sf "$HOME/.local/share/Steam/steamcmd/linux32" "$HOME/.steam/sdk32" 2>/dev/null || true
+ln -sf "$HOME/.local/share/Steam/steamcmd/linux64" "$HOME/.steam/sdk64" 2>/dev/null || true
+ln -sf "$HOME/.steam/sdk32/steamclient.so" "$HOME/.steam/sdk32/steamservice.so" 2>/dev/null || true
+ln -sf "$HOME/.steam/sdk64/steamclient.so" "$HOME/.steam/sdk64/steamservice.so" 2>/dev/null || true
+
 mkdir -p "$INSTALL_DIR" || true
 mkdir -p "$INSTALL_DIR/logs" || true
 

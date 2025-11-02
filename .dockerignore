@@ -1,6 +1,97 @@
+# Environment files
 .env*
+!.env.example
+
+# Data directories (game files, saves)
 data/
 tmp/
+logs/
+
+# Documentation
 *.md
+!README.md
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# GitHub
+.github/
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Linters and formatters
+.ruff_cache/
+.mypy_cache/
+.pylint.d/
+.black/
+.isort.cfg
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+.project
+.pydevproject
+.settings/
+
+# Node (if any JS tooling)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+
+# CI/CD
+.travis.yml
+.circleci/
+.gitlab-ci.yml
+
+# Misc
+*.log
+*.bak
+*.tmp
+*.cache
+.terraform/
+Thumbs.db
 
 

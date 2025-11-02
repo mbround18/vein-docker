@@ -6,73 +6,68 @@ FROM steamcmd/steamcmd:ubuntu
 ENV TZ=America/Los_Angeles \
     PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive
-    
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-RUN apt-get update \
+# Install dependencies in a single layer and clean up
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo $TZ > /etc/timezone \
+    && apt-get update \
     && apt-get upgrade -y \
-    && apt-get install -y -qq \
-        build-essential \
-        htop net-tools nano gcc g++ gdb \
-        curl wget zip unzip \
-        cron sudo gosu dos2unix jq crudini \
-        tzdata \
+    && apt-get install -y --no-install-recommends \
+        # Essential tools
         ca-certificates \
+        tzdata \
+        # Runtime dependencies for Unreal Engine game server
         lib32gcc-s1 \
-        wine64 winbind xvfb \
-    && rm -rf /var/lib/apt/lists/* \
-    && gosu nobody true \
-    && dos2unix
+        libatomic1 \
+        libasound2t64 \
+        libpulse0 \
+        libgl1 \
+        # Management utilities
+        curl wget \
+        sudo gosu \
+        crudini jq \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+    && gosu nobody true
 
-# Install uv for Python script execution
+# Install uv for Python script execution (multi-platform)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# Remove any existing user or group with ID 1000 and create steam user
-RUN if getent passwd 1000 > /dev/null; then userdel $(getent passwd 1000 | cut -d: -f1); fi \
-    && if getent group 1000 > /dev/null; then groupdel $(getent group 1000 | cut -d: -f1); fi \
-    && groupadd -g 1000 steam \
-    && useradd -u 1000 -g 1000 \
-      -d /home/steam \
-      -s /bin/bash \
-      -m steam \
-    && chmod ugo+rw /tmp/dumps
-
-# Container information
+# Container metadata
 ARG GITHUB_SHA="not-set"
 ARG GITHUB_REF="not-set"
 ARG GITHUB_REPOSITORY="not-set"
 
-RUN echo "steam ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+# Setup steam user and permissions in a single layer
+RUN if getent passwd 1000 > /dev/null; then userdel $(getent passwd 1000 | cut -d: -f1); fi \
+    && if getent group 1000 > /dev/null; then groupdel $(getent group 1000 | cut -d: -f1); fi \
+    && groupadd -g 1000 steam \
+    && useradd -u 1000 -g 1000 -d /home/steam -s /bin/bash -m steam \
+    && echo "steam ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers \
+    && mkdir -p /tmp/dumps \
+    && chmod ugo+rw /tmp/dumps
 
 USER steam
-
 WORKDIR /home/steam
 
+# Runtime environment variables
 ENV HOME=/home/steam \
     USER=steam \
-    LD_LIBRARY_PATH="/home/steam/.steam/sdk32:/home/steam/.steam/sdk64:${LD_LIBRARY_PATH}" \
     DISPLAY=:1 \
     APP_ID=2131400 \
     INSTALL_DIR=/home/steam/vein
+ENV LD_LIBRARY_PATH="/home/steam/.steam/sdk32:/home/steam/.steam/sdk64:${LD_LIBRARY_PATH:-}"
 
-# Add entrypoint and scripts
-COPY --chown=steam:steam ./scripts/entrypoint.sh /entrypoint.sh
-COPY --chown=steam:steam ./scripts/configure_server.py /usr/local/bin/configure_server.py
-RUN chmod +x /entrypoint.sh \
-    && chmod +x /usr/local/bin/configure_server.py \
-    && mkdir -p $HOME/.steam \
-    && mkdir -p $INSTALL_DIR \
-    && ln -s $HOME/.local/share/Steam/steamcmd/linux32 $HOME/.steam/sdk32 \
-    && ln -s $HOME/.local/share/Steam/steamcmd/linux64 $HOME/.steam/sdk64 \
-    && ln -s $HOME/.steam/sdk32/steamclient.so $HOME/.steam/sdk32/steamservice.so || true \
-    && ln -s $HOME/.steam/sdk64/steamclient.so $HOME/.steam/sdk64/steamservice.so || true
+# Copy scripts with correct permissions
+COPY --chown=steam:steam --chmod=755 ./scripts/entrypoint.sh /entrypoint.sh
+COPY --chown=steam:steam --chmod=755 ./scripts/configure_server.py /usr/local/bin/configure_server.py
+
+# Create base directories (Steam SDK links created at runtime by entrypoint)
+RUN mkdir -p /home/steam/.steam /home/steam/vein
 
 WORKDIR /home/steam/vein
 
-# Ports are game-specific; define via docker-compose as needed
-
-EXPOSE 27015/udp
-EXPOSE 27016/udp
-EXPOSE 7777/udp
+# Server ports
+EXPOSE 7777/udp 27015/udp 27016/udp
 
 ENTRYPOINT ["/entrypoint.sh"]
