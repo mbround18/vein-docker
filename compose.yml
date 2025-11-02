@@ -1,0 +1,43 @@
+services:
+  vein:
+    image: mbround18/vein-docker:latest
+    user: "1000:1000"
+    stop_grace_period: 120s
+    build:
+      context: .
+      dockerfile: Dockerfile
+      platforms:
+        - linux/amd64
+    env_file:
+      - .env
+    environment:
+      # Steam login; anonymous works for many dedicated servers
+      STEAM_USERNAME: "${STEAM_USERNAME:-anonymous}"
+      # Supply if not using anonymous
+      STEAM_PASSWORD: "${STEAM_PASSWORD:-}"
+      UPDATE_ON_START: "${UPDATE_ON_START:-true}"
+      VALIDATE: "${VALIDATE:-false}"
+      APP_ID: "${APP_ID:-2131400}"
+      INSTALL_DIR: "${INSTALL_DIR:-/home/steam/vein}"
+      # Server config
+      SERVER_NAME: "${SERVER_NAME:-My VEIN Server}"
+      SERVER_PASSWORD: "${SERVER_PASSWORD:-}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
+      SERVER_PORT: "${SERVER_PORT:-7777}"
+      QUERY_PORT: "${QUERY_PORT:-27015}"
+      MAX_PLAYERS: "${MAX_PLAYERS:-16}"
+      SERVER_PUBLIC: "${SERVER_PUBLIC:-true}"
+      BIND_ADDR: "${BIND_ADDR:-0.0.0.0}"
+      HEARTBEAT_INTERVAL: "${HEARTBEAT_INTERVAL:-5.0}"
+      ADMIN_STEAM_IDS: "${ADMIN_STEAM_IDS:-}"
+      SUPERADMIN_STEAM_IDS: "${SUPERADMIN_STEAM_IDS:-}"
+      # Steam Game Server Login Token (optional) to claim server ownership
+      STEAM_GSLT: "${STEAM_GSLT:-}"
+      # Control INI updates (true/false); overrides written to Game.ini
+      INI_ENABLE: "${INI_ENABLE:-true}"
+    ports:
+      - "${SERVER_PORT:-7777}:7777/udp"
+      - "${QUERY_PORT:-27015}:27015/udp"
+      - "27016:27016/udp"
+    volumes:
+      - ./data:/home/steam/vein

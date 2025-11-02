@@ -1,0 +1,27 @@
+name: Docker Release
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  docker-release:
+    name: Reusable Docker Release
+    permissions:
+      contents: read
+      pull-requests: write
+      packages: write
+    uses: mbround18/gh-reusable/.github/workflows/docker-release.yaml@main
+    with:
+      image: mbround18/vein-docker
+      context: .
+      dockerfile: ./Dockerfile
+      platforms: linux/amd64
+      canary_label: canary
+      ghcr: false
+      dockerhub_username: mbround18
+    secrets:
+      DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
