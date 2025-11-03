@@ -7,29 +7,29 @@ Run a VEIN dedicated game server in minutes with Docker - whether you're a compl
 
 ## 📑 Table of Contents
 
-- [TL;DR](#-tldr)
-- [Getting Started](#-getting-started)
+- [TL;DR](#tldr)
+- [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Quick Setup](#quick-setup)
-- [Compose Up](#-compose-up)
-- [Compose Down](#-compose-down)
-- [Maintenance](#-maintenance)
+- [Compose Up](#compose-up)
+- [Compose Down](#compose-down)
+- [Maintenance](#maintenance)
   - [Viewing Logs](#viewing-logs)
   - [Updating the Server](#updating-the-server)
   - [Backing Up Your Data](#backing-up-your-data)
   - [Saving Your World](#saving-your-world)
-- [Configuration](#-configuration)
+- [Configuration](#configuration)
   - [Basic Settings](#basic-settings)
   - [Advanced Settings](#advanced-settings)
   - [Port Configuration](#port-configuration)
   - [Admin & Superadmin](#admin--superadmin)
   - [Server Ownership (Steam GSLT)](#server-ownership-steam-gslt)
-- [Advanced Usage](#-advanced-usage)
+- [Advanced Usage](#advanced-usage)
   - [Kubernetes with Helm Charts](#kubernetes-with-helm-charts)
   - [Custom Docker Compose](#custom-docker-compose)
   - [INI Configuration](#ini-configuration)
-- [Troubleshooting](#-troubleshooting)
-- [Contributing](#-contributing)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
 
 ---
 
