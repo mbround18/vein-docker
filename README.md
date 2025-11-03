@@ -323,9 +323,10 @@ SUPERADMIN_STEAM_IDS=76561198000000001
 ```
 
 **How to find your Steam64 ID:**
-1. Go to [steamid.io](https://steamid.io/)
-2. Enter your Steam profile URL
-3. Copy the `steamID64` number
+1. Go to your Steam profile page
+2. Right-click and view page source, or use Steam's community URL
+3. Your Steam64 ID is the long number in your profile URL
+4. Alternatively, use trusted tools like [steamid.io](https://steamid.io/) (verify URL carefully to avoid phishing)
 
 **Multi-line format also works:**
 ```env
@@ -344,7 +345,7 @@ Claim ownership of your server with a Steam Game Server Login Token:
    STEAM_GSLT=YOURTOKENHERE
    ```
 
-⚠️ **Never share or commit your GSLT token!** It's like a password.
+⚠️ **Never share or commit your GSLT token!** It's like a password. For production deployments, use environment variables or secrets management systems (like Kubernetes Secrets or Docker Swarm secrets).
 
 **Benefits:**
 - Claim server ownership
@@ -457,7 +458,8 @@ docker compose logs
 
 1. **"Could not determine server start command"**
    - The game files didn't download properly
-   - Solution: `docker compose down && rm -rf ./data && docker compose up -d`
+   - Solution: Stop the server and verify installation with `docker compose logs`
+   - If needed, reset (⚠️ **backs up data first!**): `docker compose down && mv ./data ./data.backup && docker compose up -d`
 
 2. **Port already in use**
    - Another application is using port 7777
