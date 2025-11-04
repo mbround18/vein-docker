@@ -2,6 +2,7 @@
 
 Run a VEIN dedicated game server in minutes with Docker - whether you're a complete beginner or a Docker veteran!
 
+[![Tests](https://github.com/mbround18/vein-docker/actions/workflows/python-tests.yml/badge.svg)](https://github.com/mbround18/vein-docker/actions/workflows/test.yml)
 [![Docker Image](https://img.shields.io/badge/docker-mbround18%2Fvein--docker-blue)](https://hub.docker.com/r/mbround18/vein-docker)
 [![License](https://img.shields.io/github/license/mbround18/vein-docker)](LICENSE)
 
@@ -54,6 +55,7 @@ docker compose logs -f
 ```
 
 Your VEIN server is now running! 🎉
+
 - **Data location**: `./data` directory
 - **Default port**: 7777 (UDP)
 - **Query port**: 27015 (UDP)
@@ -74,6 +76,7 @@ Players can connect to your server using your public IP address and port!
 - A few minutes of your time
 
 **Not sure if Docker is installed?** Run this command:
+
 ```bash
 docker --version
 docker compose version
@@ -84,28 +87,31 @@ If you see version numbers, you're good to go! If not, follow the [Docker instal
 ### Quick Setup
 
 1. **Get the files** - Choose one:
-   
+
    Option A: Clone this repository (recommended)
+
    ```bash
    git clone https://github.com/mbround18/vein-docker.git
    cd vein-docker
    ```
-   
+
    Option B: Download as ZIP from GitHub and extract it
 
 2. **Configure your server**
+
    ```bash
    cp .env.example .env
    ```
-   
+
    Open `.env` in your favorite text editor and customize:
+
    ```bash
    # Nano (Linux/Mac)
    nano .env
-   
+
    # Notepad (Windows)
    notepad .env
-   
+
    # Or use any text editor like VSCode, Sublime, etc.
    ```
 
@@ -129,6 +135,7 @@ docker compose up -d
 ```
 
 **What does this do?**
+
 - `-d` runs it in "detached" mode (background)
 - Downloads the VEIN server files automatically (first time only)
 - Configures everything based on your `.env` file
@@ -137,9 +144,11 @@ docker compose up -d
 **First time setup?** The initial download might take 5-10 minutes depending on your internet speed. Grab a coffee! ☕
 
 **Want to see what's happening?**
+
 ```bash
 docker compose logs -f
 ```
+
 Press `Ctrl+C` to stop viewing logs (your server keeps running).
 
 ---
@@ -153,18 +162,21 @@ docker compose down
 ```
 
 **What does this do?**
+
 - Gracefully shuts down your server
 - Attempts to save your world (if `SAVE_ON_SHUTDOWN=true` in `.env`)
 - Stops and removes the container
 - **Your data is safe** in the `./data` directory
 
 **Pro tip:** Before shutting down, save your world manually for best results:
+
 1. Connect to your server as an admin
 2. Run the `Save` command
 3. Wait a few seconds
 4. Then run `docker compose down`
 
 **Need to restart?**
+
 ```bash
 docker compose restart
 ```
@@ -224,12 +236,14 @@ docker compose up -d
 ### Saving Your World
 
 **Manual save (recommended before shutdown):**
+
 1. Log in as superadmin (set `SUPERADMIN_STEAM_IDS` in `.env`)
 2. Open the console in-game
 3. Type: `Save`
 4. Wait 5-10 seconds
 
 **Automatic saves** are enabled by default (every 60 seconds). Configure in `.env`:
+
 ```env
 AUTOSAVE_ENABLED=1
 AUTOSAVE_INTERVAL=60
@@ -291,20 +305,25 @@ HEARTBEAT_INTERVAL=5.0
 ### Port Configuration
 
 **Default ports** (UDP):
+
 - `7777` - Main game server port
 - `27015` - Query port (server browser)
 - `27016` - Auxiliary port (optional)
 
 **Important:** Don't forget to:
+
 1. Forward these ports on your router
 2. Allow them through your firewall
 3. Match them in your `.env` file
 
 **Changed the server port?** Update both:
+
 ```env
 SERVER_PORT=8888
 ```
+
 And in `compose.yml`:
+
 ```yaml
 ports:
   - "8888:7777/udp"
@@ -323,12 +342,14 @@ SUPERADMIN_STEAM_IDS=76561198000000001
 ```
 
 **How to find your Steam64 ID:**
+
 1. Go to your Steam profile page
 2. Right-click and view page source, or use Steam's community URL
 3. Your Steam64 ID is the long number in your profile URL
 4. Alternatively, use trusted tools like [steamid.io](https://steamid.io/) (verify URL carefully to avoid phishing)
 
 **Multi-line format also works:**
+
 ```env
 ADMIN_STEAM_IDS="76561198000000001
 76561198000000002"
@@ -348,6 +369,7 @@ Claim ownership of your server with a Steam Game Server Login Token:
 ⚠️ **Never share or commit your GSLT token!** It's like a password. For production deployments, use environment variables or secrets management systems (like Kubernetes Secrets or Docker Swarm secrets).
 
 **Benefits:**
+
 - Claim server ownership
 - Better server listing
 - Track server stats
@@ -377,6 +399,7 @@ helm install vein-server mbround18/vein -f my-values.yaml
 ```
 
 **Example `my-values.yaml`:**
+
 ```yaml
 env:
   SERVER_NAME: "My K8s VEIN Server"
@@ -422,6 +445,7 @@ services:
 ```
 
 Then create your `.env` file and run:
+
 ```bash
 docker compose up -d
 ```
@@ -440,6 +464,7 @@ INI_EXTRA_OVERRIDES=|
 **Format:** `filename:section:key=value`
 
 **Sections managed by default:**
+
 - `[/script/engine.gamesession]` - MaxPlayers
 - `[/script/vein.veingamesession]` - bPublic, ServerName, BindAddr, Password, AdminSteamIDs, SuperAdminSteamIDs
 
@@ -450,6 +475,7 @@ INI_EXTRA_OVERRIDES=|
 ### Server won't start
 
 **Check logs first:**
+
 ```bash
 docker compose logs
 ```
@@ -503,6 +529,7 @@ docker compose logs
 We love contributions! Whether you're fixing bugs, improving docs, or adding features - you're welcome here.
 
 **Ways to contribute:**
+
 - 🐛 Report bugs via [GitHub Issues](https://github.com/mbround18/vein-docker/issues)
 - 📝 Improve documentation
 - 💻 Submit pull requests
@@ -510,6 +537,7 @@ We love contributions! Whether you're fixing bugs, improving docs, or adding fea
 - 📢 Share with friends
 
 **Development setup:**
+
 ```bash
 git clone https://github.com/mbround18/vein-docker.git
 cd vein-docker
@@ -526,6 +554,7 @@ docker compose up --build -d
 Thank you for using this container! We hope it makes hosting your VEIN server easy and enjoyable.
 
 **Having a great experience?** Consider:
+
 - ⭐ Starring the repository
 - 🐦 Sharing with your community
 - 💬 Providing feedback
