@@ -77,6 +77,7 @@ Advanced (optional):
 - AUTOSAVE_ENABLED — 1 (enabled) or 0 (disabled), default 1
 - AUTOSAVE_INTERVAL — seconds between autosaves, default 60
 - AUTOSAVE_MAX_QUANTITY — maximum number of autosave files to keep, default 10
+- CODE_8_MITIGATION — true/false to enable automatic recovery from SteamCMD error code 8 (default true)
 - INI_ENABLE — true/false to write settings into Game.ini (default true)
 - INI_EXTRA_OVERRIDES — extra lines like `Game.ini:/script/vein.veingamesession:BindAddr=0.0.0.0`
 - EXTRA_ARGS — extra flags passed to `VeinServer.sh`
@@ -131,6 +132,17 @@ Open these ports on your firewall and router as needed.
   - Wait a few seconds, then stop the container.
   - Note: The container can also attempt a best‑effort save on stop when `SAVE_ON_SHUTDOWN=true`, but please still prefer an explicit `Save` command before shutdown.
 
+## SteamCMD Error Code 8 Mitigation
+
+SteamCMD sometimes fails with exit code 8 due to corrupted files or failed delta updates. When `CODE_8_MITIGATION=true` (default), the container automatically recovers by:
+
+1. Backing up your saves from `/home/steam/vein/Vein/Saved` to `$HOME/.backup`
+2. Deleting the entire install directory
+3. Performing a clean installation
+4. Restoring your saves from backup
+
+This ensures your game progress is preserved even when SteamCMD encounters update issues. Your saves are never at risk.
+
 ## Troubleshooting
 
 - Could not determine server start command
@@ -140,6 +152,10 @@ Open these ports on your firewall and router as needed.
   - Verify firewall/NAT and that published ports match `.env`
 - INI not updating
   - Ensure `INI_ENABLE=true` and the container can write to `./data`
+- SteamCMD error code 8 on updates
+  - This is automatically handled when `CODE_8_MITIGATION=true` (default)
+  - Your saves are backed up and restored automatically
+  - Check logs for "Code 8 mitigation" messages
 
 ---
 

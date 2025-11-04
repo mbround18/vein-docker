@@ -15,9 +15,12 @@ from typing import Any, Optional
 class UEConfigParser(configparser.ConfigParser):
     """
     Custom ConfigParser that preserves UE4/5 array syntax (+Key=value).
+    Disables interpolation to prevent Steam IDs from being converted to scientific notation.
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        # Disable interpolation to prevent numeric conversion issues
+        kwargs.setdefault("interpolation", None)
         super().__init__(*args, **kwargs)
         self.optionxform = str  # type: ignore[assignment]
 
@@ -37,12 +40,14 @@ class UEConfigParser(configparser.ConfigParser):
                     if isinstance(value, str) and "\n" in value:
                         for item in value.split("\n"):
                             if item.strip():
+                                # Ensure Steam IDs are written as strings, not scientific notation
                                 fp.write(f"{real_key}={item}\n")
                                 fp.write(f"+{real_key}={item}\n")
                     else:
                         fp.write(f"{real_key}={value}\n")
                         fp.write(f"+{real_key}={value}\n")
                 else:
+                    # Write regular values, ensuring strings stay as strings
                     if space_around_delimiters:
                         fp.write(f"{key} = {value}\n")
                     else:
@@ -152,14 +157,19 @@ def update_game_ini(
 
     # Handle admin IDs - add them back as special array entries
     # Only add if IDs were provided
+    # Ensure Steam IDs are stored as strings to prevent scientific notation
     if admin_steam_ids:
-        config.set(vein_section, "_ue_array_AdminSteamIDs", "\n".join(admin_steam_ids))
+        # Quote each ID to ensure it stays as a string
+        quoted_ids = [str(id_val) for id_val in admin_steam_ids]
+        config.set(vein_section, "_ue_array_AdminSteamIDs", "\n".join(quoted_ids))
 
     if superadmin_steam_ids:
+        # Quote each ID to ensure it stays as a string
+        quoted_ids = [str(id_val) for id_val in superadmin_steam_ids]
         config.set(
             vein_section,
             "_ue_array_SuperAdminSteamIDs",
-            "\n".join(superadmin_steam_ids),
+            "\n".join(quoted_ids),
         )
 
     # Write config

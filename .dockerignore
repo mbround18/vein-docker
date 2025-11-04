@@ -95,3 +95,17 @@ docker-compose.override.yml
 Thumbs.db
 
 
+### Python ###
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+tests/
+pyproject.toml
+uv.lock
+.venv/
+.ruff_cache/
+.coverage
+htmlcov/
+.pytest_cache/

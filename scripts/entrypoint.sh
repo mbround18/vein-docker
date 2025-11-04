@@ -35,6 +35,7 @@ SAVE_WAIT_SECONDS="${SAVE_WAIT_SECONDS:-5}"
 AUTOSAVE_ENABLED="${AUTOSAVE_ENABLED:-1}"
 AUTOSAVE_INTERVAL="${AUTOSAVE_INTERVAL:-60}"
 AUTOSAVE_MAX_QUANTITY="${AUTOSAVE_MAX_QUANTITY:-10}"
+CODE_8_MITIGATION="${CODE_8_MITIGATION:-true}"
 
 # Helper: set INI key-value (used only for INI_EXTRA_OVERRIDES now)
 set_ini_kv() {
@@ -135,17 +136,84 @@ fi
 
 if [[ "$should_install" == "true" ]]; then
   echo "⬇️ Installing/Updating VEIN server (app ${APP_ID})..."
-  # Build steamcmd command safely with separate args
-  cmd=(steamcmd +force_install_dir "$INSTALL_DIR" +login "$STEAM_USERNAME")
-  if [[ -n "$STEAM_PASSWORD" && "$STEAM_USERNAME" != "anonymous" ]]; then
-    cmd+=("$STEAM_PASSWORD")
+  
+  # Function to run SteamCMD update
+  run_steamcmd_update() {
+    # Build steamcmd command safely with separate args
+    local cmd=(steamcmd +force_install_dir "$INSTALL_DIR" +login "$STEAM_USERNAME")
+    if [[ -n "$STEAM_PASSWORD" && "$STEAM_USERNAME" != "anonymous" ]]; then
+      cmd+=("$STEAM_PASSWORD")
+    fi
+    cmd+=(+app_update "$APP_ID")
+    if [[ "$VALIDATE_FLAG" == "true" ]]; then
+      cmd+=(validate)
+    fi
+    cmd+=(+quit)
+    "${cmd[@]}"
+    return $?
+  }
+  
+  # Try the update
+  set +e
+  run_steamcmd_update
+  EXIT_CODE=$?
+  set -e
+  
+  # Check for error code 8 and apply mitigation if enabled
+  if [[ $EXIT_CODE -eq 8 && "$CODE_8_MITIGATION" == "true" ]]; then
+    echo "⚠️ SteamCMD returned error code 8 (corrupt/failed update)"
+    echo "🔧 CODE_8_MITIGATION enabled - performing clean install with save preservation..."
+    
+    BACKUP_DIR="$HOME/.backup"
+    SAVED_DIR="$INSTALL_DIR/Vein/Saved"
+    
+    # Backup saves if they exist
+    if [[ -d "$SAVED_DIR" ]] && [[ -n "$(ls -A "$SAVED_DIR" 2>/dev/null || true)" ]]; then
+      echo "💾 Backing up saves to $BACKUP_DIR..."
+      mkdir -p "$BACKUP_DIR"
+      rm -rf "$BACKUP_DIR"/* 2>/dev/null || true
+      cp -r "$SAVED_DIR" "$BACKUP_DIR/" 2>/dev/null || true
+      echo "✅ Backup complete: $(du -sh "$BACKUP_DIR" 2>/dev/null | cut -f1)"
+    else
+      echo "ℹ️ No existing saves to backup"
+    fi
+    
+    # Delete install directory contents
+    echo "🗑️ Cleaning install directory for fresh installation..."
+    rm -rf "${INSTALL_DIR:?}"/* 2>/dev/null || true
+    
+    # Perform clean install
+    echo "📥 Performing clean installation..."
+    set +e
+    run_steamcmd_update
+    RETRY_EXIT_CODE=$?
+    set -e
+    
+    if [[ $RETRY_EXIT_CODE -ne 0 ]]; then
+      echo "❌ Clean install failed with exit code $RETRY_EXIT_CODE"
+      # Restore backups even on failure
+      if [[ -d "$BACKUP_DIR/Saved" ]]; then
+        echo "♻️ Restoring saves despite installation failure..."
+        mkdir -p "$SAVED_DIR"
+        cp -r "$BACKUP_DIR/Saved"/* "$SAVED_DIR/" 2>/dev/null || true
+      fi
+      exit $RETRY_EXIT_CODE
+    fi
+    
+    # Restore saves
+    if [[ -d "$BACKUP_DIR/Saved" ]]; then
+      echo "♻️ Restoring saves from backup..."
+      mkdir -p "$SAVED_DIR"
+      cp -r "$BACKUP_DIR/Saved"/* "$SAVED_DIR/" 2>/dev/null || true
+      rm -rf "$BACKUP_DIR" 2>/dev/null || true
+      echo "✅ Saves restored successfully"
+    fi
+    
+    echo "✨ Code 8 mitigation completed successfully"
+  elif [[ $EXIT_CODE -ne 0 ]]; then
+    echo "❌ SteamCMD failed with exit code $EXIT_CODE"
+    exit $EXIT_CODE
   fi
-  cmd+=(+app_update "$APP_ID")
-  if [[ "$VALIDATE_FLAG" == "true" ]]; then
-    cmd+=(validate)
-  fi
-  cmd+=(+quit)
-  "${cmd[@]}"
 fi
 
 # Check if initial config generation is needed
