@@ -6,22 +6,73 @@ on:
     tags: ["v*"]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: mbround18/paws/actions/paws-up@main
+
+      - name: Resolve release version
+        id: resolve
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            version="${{ github.ref_name }}"
+          else
+            version=$(paws semver --branch main)
+          fi
+          echo "Resolved version: $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
   docker-release:
-    name: Reusable Docker Release
+    needs: version
+    name: Docker Release
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
       packages: write
-    uses: mbround18/gh-reusable/.github/workflows/docker-release.yaml@main
-    with:
-      image: mbround18/vein-docker
-      context: .
-      dockerfile: ./Dockerfile
-      platforms: linux/amd64
-      canary_label: canary
-      ghcr: false
-      dockerhub_username: mbround18
-    secrets:
-      DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: mbround18/paws/actions/paws-up@main
+
+      - name: paws docker
+        env:
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+        run: |
+          paws docker \
+            --image "mbround18/vein-docker" \
+            --version "${{ needs.version.outputs.version }}" \
+            --with-latest \
+            --dockerhub-username mbround18
+
+  tagger:
+    needs: [version, docker-release]
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: mbround18/paws/actions/paws-up@main
+
+      - name: Compute and push next tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: paws semver --branch main --push
